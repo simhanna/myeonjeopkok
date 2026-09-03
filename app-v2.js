@@ -169,7 +169,7 @@
     $("#" + screen)?.classList.add("on");
     const navTarget = screen === "companyDetail" ? "home" : screen;
     $$(".nav,.bottom button").forEach(item => item.classList.toggle("on", item.dataset.go === navTarget));
-    const stepMap = { profile: 1, experience: 2, cover: 3, analysis: 4, setup: 5, interview: 5 };
+    const stepMap = { profile: 1, experience: 2, cover: 3, analysis: 4, setup: 5, interview: 5, remoteInterview: 5 };
     const step = stepMap[screen] || 0;
     $$(".step").forEach(item => {
       const number = Number(item.dataset.step);
@@ -778,7 +778,7 @@
     const project = projectById();
     const records = project?.interviews || [];
     if ($("#rightRecords")) $("#rightRecords").innerHTML = records.length
-      ? records.slice(0, 5).map(item => `<div class="record"><div class="muted">${safe(item.date)}</div><b>${safe(project.targetName)} 면접</b><div class="muted">습관어 ${item.fillers ?? "기록 없음"}${item.fillers == null ? "" : "회"}</div><div class="score">${safe(item.total)}</div></div>`).join("")
+      ? records.slice(0, 5).map(item => `<div class="record"><div class="muted">${safe(item.date)}</div><b>${safe(project.targetName)} · ${safe(item.mode || "모의면접")}</b><div class="muted">습관어 ${item.fillers ?? "기록 없음"}${item.fillers == null ? "" : "회"}</div><div class="score">${safe(item.total)}</div></div>`).join("")
       : '<div class="muted">현재 프로젝트의 면접 기록이 없어요.</div>';
   }
 
@@ -787,7 +787,7 @@
     const records = project?.interviews || [];
     if (!$("#hist")) return;
     $("#hist").innerHTML = project
-      ? (records.length ? records.map((item, index) => `<div class="record"><div class="muted">${safe(item.date)}</div><b>${safe(project.targetName)} · 모의면접 ${records.length - index}회차</b><div class="muted">구체성 ${safe(item.specific)} · STAR ${safe(item.star)} · 말하기 ${safe(item.speech)} · 습관어 ${item.fillers ?? "기록 없음"}${item.fillers == null ? "" : "회"}</div><div class="score">${safe(item.total)}</div></div>`).join("") : '<div class="info">현재 프로젝트의 면접 기록이 없어요.</div>')
+      ? (records.length ? records.map((item, index) => `<div class="record"><div class="muted">${safe(item.date)}</div><b>${safe(project.targetName)} · ${safe(item.mode || "모의면접")} ${records.length - index}회차</b><div class="muted">구체성 ${safe(item.specific)} · STAR ${safe(item.star)} · 말하기 ${safe(item.speech)} · 습관어 ${item.fillers ?? "기록 없음"}${item.fillers == null ? "" : "회"}</div><div class="score">${safe(item.total)}</div></div>`).join("") : '<div class="info">현재 프로젝트의 면접 기록이 없어요.</div>')
       : '<div class="info">프로젝트를 먼저 선택해주세요.</div>';
   }
 
@@ -896,6 +896,25 @@
     else if (afterReload) go(afterReload);
     document.documentElement.dataset.projectsReady = "true";
   }
+
+  window.MyeonjeopkokProjects = {
+    getActiveProject: () => {
+      const project = projectById();
+      return project ? JSON.parse(JSON.stringify(project)) : null;
+    },
+    saveRemoteInterview: record => {
+      const project = projectById();
+      if (!project) return false;
+      project.interviews ||= [];
+      project.interviews.unshift(record);
+      project.interviews = project.interviews.slice(0, 30);
+      project.updatedAt = todayText();
+      persistProjects();
+      syncLegacy(project);
+      renderRightRecords();
+      return true;
+    }
+  };
 
   initialize();
 })();
