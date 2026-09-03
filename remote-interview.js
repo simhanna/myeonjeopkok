@@ -6,8 +6,8 @@
   const interviewerMap = {
     fact: {
       name: "한지우 면접관",
-      image: "s/g1.png",
-      talkImage: "s/g1-talk.png",
+      image: "s/g2.png",
+      talkImage: "s/g2-talk.png",
       difficulty: "팩트형",
       prompt: "젊고 꼼꼼합니다. 뼈를 때리듯 직설적이지만 정확한 근거로 허점을 짚어 반박하기 어려운 질문을 합니다."
     },
@@ -20,10 +20,10 @@
     },
     strict: {
       name: "김서현 부장",
-      image: "s/g2.png",
-      talkImage: "s/g2-talk.png",
+      image: "s/g1.png",
+      talkImage: "s/g1-talk.png",
       difficulty: "까칠한 부장님형",
-      prompt: "까칠하고 냉정한 여자 부장님 스타일로, 애매한 표현을 넘기지 않고 성과와 책임 범위를 집요하게 확인합니다."
+      prompt: "경력이 느껴지는 까칠하고 냉정한 여자 부장님 스타일로, 애매한 표현을 넘기지 않고 성과와 책임 범위를 집요하게 확인합니다."
     }
   };
   const state = {
@@ -39,7 +39,8 @@
     baseText: "",
     questionStartedAt: 0,
     interviewStartedAt: 0,
-    timer: null
+    timer: null,
+    speechRun: 0
   };
 
   function safe(value) {
@@ -132,31 +133,81 @@
 
   function koreanVoice() {
     const voices = speechSynthesis.getVoices();
-    return voices.find(voice => /^ko/i.test(voice.lang)) || voices.find(voice => voice.lang.includes("KR")) || null;
+    const korean = voices.filter(voice => /^ko/i.test(voice.lang) || voice.lang.includes("KR"));
+    const preferredGender = state.interviewer === "manager"
+      ? /InJoon|GookMin|Hyunsu|Male|남성/i
+      : /SunHi|Yuna|Female|여성/i;
+    return korean.sort((a, b) => {
+      const score = voice =>
+        (/Natural|Neural/i.test(voice.name) ? 100 : 0) +
+        (/Online/i.test(voice.name) ? 40 : 0) +
+        (preferredGender.test(voice.name) ? 25 : 0) +
+        (!voice.localService ? 10 : 0);
+      return score(b) - score(a);
+    })[0] || null;
+  }
+
+  function speechSegments(text) {
+    const parts = String(text).match(/[^,.!?]+[,.!?]?/g) || [text];
+    return parts.map(part => part.trim()).filter(Boolean);
   }
 
   function speakQuestion() {
     if (!state.running || !state.questions[state.index]) return;
     stopListening();
     speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(state.questions[state.index]);
-    utterance.lang = "ko-KR";
-    utterance.rate = state.interviewer === "strict" ? 1.05 : state.interviewer === "manager" ? 0.94 : 1.01;
-    utterance.pitch = state.interviewer === "manager" ? 0.86 : 1;
-    const voice = koreanVoice();
-    if (voice) utterance.voice = voice;
-    utterance.onstart = () => setStage("speaking", "질문을 읽고 있어요.");
-    utterance.onend = () => {
+    const run = ++state.speechRun;
+    let voice = koreanVoice();
+    const segments = speechSegments(state.questions[state.index]);
+    const status = $("#remoteInterviewerStatus");
+    const finishSpeech = () => {
+      if (run !== state.speechRun) return;
       setStage("idle", "답변을 기다리고 있어요");
       $("#remoteMic").disabled = false;
       $("#remoteMic").classList.add("ready");
     };
-    utterance.onerror = () => {
-      setStage("idle", "질문을 화면에서 확인하고 답변해주세요.");
-      $("#remoteMic").disabled = false;
-      $("#remoteMic").classList.add("ready");
+    const speakSegment = index => {
+      if (run !== state.speechRun) return;
+      if (index >= segments.length) {
+        finishSpeech();
+        return;
+      }
+      const utterance = new SpeechSynthesisUtterance(segments[index]);
+      utterance.lang = "ko-KR";
+      utterance.rate = state.interviewer === "strict" ? 0.97 : state.interviewer === "manager" ? 0.91 : 0.94;
+      utterance.pitch = state.interviewer === "manager" ? 0.88 : state.interviewer === "strict" ? 0.95 : 0.99;
+      utterance.volume = 1;
+      if (voice) utterance.voice = voice;
+      utterance.onstart = () => {
+        if (index === 0) setStage("speaking", "질문을 자연스럽게 읽고 있어요.");
+      };
+      utterance.onend = () => {
+        if (run !== state.speechRun) return;
+        const punctuation = segments[index].slice(-1);
+        const pause = /[.!?]/.test(punctuation) ? 180 : 85;
+        setTimeout(() => speakSegment(index + 1), pause);
+      };
+      utterance.onerror = () => finishSpeech();
+      speechSynthesis.speak(utterance);
     };
-    speechSynthesis.speak(utterance);
+    const beginNaturalSpeech = () => {
+      if (run !== state.speechRun) return;
+      voice = koreanVoice();
+      if (status) status.dataset.voice = voice?.name || "browser-default";
+      speakSegment(0);
+    };
+    if (voice) beginNaturalSpeech();
+    else {
+      setStage("idle", "자연스러운 목소리를 준비하고 있어요.");
+      let started = false;
+      const beginOnce = () => {
+        if (started) return;
+        started = true;
+        beginNaturalSpeech();
+      };
+      speechSynthesis.addEventListener("voiceschanged", beginOnce, { once: true });
+      setTimeout(beginOnce, 700);
+    }
   }
 
   function prepareRecognition() {
@@ -326,6 +377,7 @@
   function finishInterview() {
     if (!state.running) return;
     stopListening();
+    state.speechRun += 1;
     speechSynthesis.cancel();
     clearInterval(state.timer);
     if ($("#remoteTranscript").value.trim() && state.answers.length <= state.index) {
