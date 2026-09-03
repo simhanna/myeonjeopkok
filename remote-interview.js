@@ -53,7 +53,7 @@
 
   const TTS_ENDPOINT = window.MYEONJEOPKOK_TTS_API
     || localStorage.getItem("mk_tts_api")
-    || "";
+    || "https://myeonjeopkok-simhanna-tts.onrender.com/tts";
 
   function safe(value) {
     return String(value ?? "").replace(/[&<>"']/g, char => ({
@@ -66,52 +66,56 @@
   }
 
   function projectQuestions(project) {
-    if ((project.expectedQuestions || []).length >= 5) return project.expectedQuestions.slice(0, 5);
     const school = project.type === "school";
     const target = project.targetName;
     const role = project.role;
     const cover = (project.covers || [])[0]?.text || "";
-    const strengthQuestion = school
-      ? `${role} 진학을 위해 준비한 활동과 그 과정에서 배운 점을 말씀해주세요.`
-      : `${role} 업무에 필요한 역량을 발휘한 경험을 말씀해주세요.`;
-    const tailored = cover
-      ? "자기소개서에 작성한 경험에서 본인이 직접 수행한 행동과 결과를 구체적으로 설명해주세요."
-      : "본인의 강점을 보여주는 대표적인 경험을 설명해주세요.";
-    const questions = [
-      `${target}의 ${role}에 지원한 이유를 말씀해주세요.`,
-      strengthQuestion,
-      tailored,
-      "협업 과정에서 의견 충돌이나 문제가 발생했을 때 어떻게 해결했나요?",
-      school
-        ? `${target} 입학 후 이루고 싶은 학업 목표와 계획을 말씀해주세요.`
-        : `${target} 입사 후 이루고 싶은 목표와 기여 방안을 말씀해주세요.`
-    ];
-    if (state.interviewer === "manager") return questions.map((question, index) => index
-      ? `좋습니다. 한 가지만 더 구체적으로 확인하겠습니다. ${question}`
-      : question);
+    const saved = (project.expectedQuestions || []).slice(0, 5);
+    const source = saved.length >= 5 ? saved : null;
+    if (source) {
+      const leads = {
+        fact: ["네, 바로 확인해볼게요.", "좋습니다. 그럼 조금 더 구체적으로 보겠습니다.", "말씀하신 내용에서 한 가지 짚어볼게요.", "네, 이번에는 실제 행동을 확인하겠습니다.", "마지막으로 핵심만 여쭤볼게요."],
+        manager: ["네, 먼저 편하게 말씀해주시겠어요?", "좋습니다. 그 부분을 조금 더 들어보고 싶군요.", "네, 당시 상황을 떠올리면서 말씀해보세요.", "좋습니다. 한 가지만 더 확인해보겠습니다.", "네, 마지막 질문입니다."],
+        strict: ["바로 질문드리겠습니다.", "말씀하신 내용은 알겠습니다. 다만 확인할 게 있습니다.", "그 부분은 조금 더 분명해야겠네요.", "좋습니다. 핵심만 말씀해보세요.", "마지막으로 확인하겠습니다."]
+      };
+      return source.map((question, index) => `${leads[state.interviewer][index]} ${question}`);
+    }
     if (state.interviewer === "fact") return [
-      `${target}의 ${role}에 지원했다고 했는데, 다른 지원자 대신 본인을 선택해야 하는 명확한 이유가 무엇인가요?`,
-      `${role} 역량이 있다고 판단할 수 있는 행동과 결과를 수치나 변화로 증명해주세요.`,
+      `네, 그러면 ${target}의 ${role}에 지원한 이유부터 확인할게요. 다른 지원자 대신 본인을 선택해야 하는 명확한 이유는 뭐라고 생각하세요?`,
+      `좋습니다. 본인에게 ${role} 역량이 있다고 판단할 수 있는 행동과 결과를 수치나 실제 변화로 설명해주시겠어요?`,
       cover
-        ? "자기소개서의 경험에서 본인이 빠졌어도 같은 결과가 나왔을 것 같은데, 본인만의 기여는 정확히 무엇이었나요?"
-        : "강점이라고 말한 내용이 단순한 자기평가가 아니라는 객관적인 근거를 말씀해주세요.",
-      "협업 갈등을 해결했다고 했는데, 상대방이 양보한 것을 본인의 해결 능력이라고 해석한 것은 아닌가요?",
+        ? "자기소개서에 적은 경험을 보면요. 본인이 빠졌어도 비슷한 결과가 나왔을 것 같은데, 본인이 직접 만든 변화는 정확히 뭐였어요?"
+        : "본인이 말한 강점이 단순한 자기평가는 아니라는 객관적인 근거가 있나요? 실제 사례로 말씀해주세요.",
+      "협업 중 갈등을 해결했다고 하셨는데요. 상대방이 양보한 것을 본인의 해결 능력이라고 해석한 건 아닌지, 그 차이를 설명해주시겠어요?",
       school
-        ? `말씀한 학업 계획이 꼭 ${target} ${role}여야만 가능한 이유를 설명해주세요.`
-        : `말씀한 목표가 본인의 성장뿐 아니라 ${target}에 실제로 어떤 이익을 주는지 설명해주세요.`
+        ? `마지막으로요. 말씀하신 학업 계획이 꼭 ${target} ${role}여야만 가능한 이유는 무엇인가요?`
+        : `마지막으로요. 말씀하신 목표가 본인의 성장뿐 아니라 ${target}에 실제로 어떤 도움이 되는지 설명해주세요.`
+    ];
+    if (state.interviewer === "manager") return [
+      `네, 먼저 ${target}의 ${role}에 지원하게 된 계기부터 편하게 말씀해주시겠어요?`,
+      school
+        ? `${role} 진학을 위해 준비한 활동이 있다면 말씀해보세요. 그 과정에서 무엇을 배웠는지도 함께 들려주시면 좋겠습니다.`
+        : `${role} 업무에 필요한 역량을 보여준 경험이 있다면 말씀해보세요. 당시 본인이 맡았던 역할도 함께 설명해주시겠어요?`,
+      cover
+        ? "좋습니다. 자기소개서에 적은 그 경험에서 본인이 직접 맡았던 역할은 정확히 뭐였어요? 행동과 결과를 차근차근 말씀해보세요."
+        : "네, 본인이 생각하는 가장 큰 강점은 뭐라고 생각하세요? 그 강점이 실제로 드러난 경험도 함께 말씀해주시겠어요?",
+      "협업하는 과정에서 의견이 달라 어려웠던 적이 있었나요? 그때 상대방과 어떻게 조율했는지 편하게 말씀해보세요.",
+      school
+        ? `마지막으로 ${target}에 입학한 뒤 이루고 싶은 학업 목표와 계획을 말씀해주시겠어요?`
+        : `마지막으로 ${target}에 입사한다면 어떤 목표를 이루고, 조직에 어떻게 기여하고 싶은지 말씀해주시겠어요?`
     ];
     if (state.interviewer === "strict") return [
-      `${target}의 ${role} 지원 동기가 본인 입장에서만 좋은 이야기로 들리는데, 우리 지원처가 얻는 것은 정확히 무엇인가요?`,
-      `본인이 ${role} 역량을 갖췄다고 했는데, 그 주장을 검증할 수 있는 수치와 결과부터 말씀해보세요.`,
+      `${target}의 ${role} 지원 동기가 본인에게만 좋은 이야기로 들리는데요. 우리 입장에서 본인을 선택하면 얻는 것이 정확히 무엇입니까?`,
+      `본인이 ${role} 역량을 갖췄다고 하셨죠. 그 주장을 확인할 수 있는 수치와 결과부터 짧고 분명하게 말씀해보세요.`,
       cover
-        ? "자기소개서 내용이 다소 포장된 것 같습니다. 본인이 실제로 한 행동과 다른 사람이 한 일을 명확히 구분해주세요."
-        : "강점이라는 표현은 누구나 할 수 있습니다. 실패하거나 부족했던 상황에서도 같은 강점이 드러났다는 근거가 있나요?",
-      "갈등을 해결했다고 했는데, 상대방 입장에서는 본인이 갈등의 원인이었을 가능성은 검토했나요?",
+        ? "자기소개서 내용이 다소 포장된 것 같네요. 본인이 실제로 한 행동과 다른 사람이 한 일을 정확히 구분해서 말씀해보세요."
+        : "강점이라는 말은 누구나 할 수 있습니다. 실패하거나 부족했던 상황에서도 그 강점이 드러났다는 근거가 있습니까?",
+      "갈등을 해결했다고 하셨는데요. 상대방 입장에서는 본인이 갈등의 원인이었을 가능성도 검토해봤습니까?",
       school
-        ? `이 정도 계획이라면 다른 학교에서도 가능한데, 반드시 ${target} ${role}여야 하는 이유가 있나요?`
-        : `말씀한 목표가 실제 업무 성과로 이어지지 않는다면 회사가 본인을 계속 선택해야 할 이유는 무엇인가요?`
+        ? `이 정도 계획이라면 다른 학교에서도 가능해 보입니다. 반드시 ${target} ${role}여야 하는 이유가 있습니까?`
+        : `말씀하신 목표가 실제 업무 성과로 이어지지 않는다면, 회사가 본인을 계속 선택해야 할 이유는 무엇입니까?`
     ];
-    return questions;
+    return [];
   }
 
   function fillerCount(text) {
@@ -144,7 +148,6 @@
   }
 
   function stopQuestionAudio() {
-    window.speechSynthesis?.cancel();
     state.questionAudioRequest?.abort();
     state.questionAudioRequest = null;
     if (state.questionAudio) {
@@ -159,73 +162,8 @@
     }
   }
 
-  function preferredKoreanVoice() {
-    const voices = window.speechSynthesis?.getVoices?.() || [];
-    const korean = voices.filter(voice => /^ko/i.test(voice.lang) || /ko[-_]KR/i.test(voice.lang));
-    const wantsMale = interviewerMap[state.interviewer].gender === "male";
-    const genderPattern = wantsMale
-      ? /InJoon|BongJin|GookMin|Hyunsu|YoungMin|Male|남성/i
-      : /SunHi|Yuna|Heami|Female|여성/i;
-    const score = voice =>
-      (/Natural|Neural/i.test(voice.name) ? 100 : 0)
-      + (/Online/i.test(voice.name) ? 30 : 0)
-      + (genderPattern.test(voice.name) ? 50 : 0);
-    return korean.sort((a, b) => score(b) - score(a))[0] || voices[0] || null;
-  }
-
-  function speakBrowserQuestion() {
-    if (!state.running || !state.questions[state.index] || !window.speechSynthesis) return;
-    stopListening(false);
-    stopQuestionAudio();
-    const run = ++state.speechRun;
-    const voice = preferredKoreanVoice();
-    const segments = String(state.questions[state.index]).match(/[^,.!?]+[,.!?]?/g) || [state.questions[state.index]];
-    $("#remoteMic").disabled = true;
-    $("#remoteReplay").disabled = true;
-    const finish = () => {
-      if (run !== state.speechRun) return;
-      setStage("waiting", "답변 대기 중");
-      $("#remoteMic").disabled = !state.recognition;
-      $("#remoteMic").classList.toggle("ready", !!state.recognition);
-      $("#remoteReplay").disabled = false;
-    };
-    const playSegment = index => {
-      if (run !== state.speechRun) return;
-      if (index >= segments.length) return finish();
-      const utterance = new SpeechSynthesisUtterance(segments[index].trim());
-      utterance.lang = "ko-KR";
-      if (voice) utterance.voice = voice;
-      utterance.rate = state.interviewer === "manager" ? 0.84 : state.interviewer === "strict" ? 0.91 : 0.9;
-      utterance.pitch = state.interviewer === "manager" ? 0.76 : state.interviewer === "strict" ? 0.88 : 1.02;
-      utterance.volume = 1;
-      utterance.onstart = () => setStage("speaking", "질문 중");
-      utterance.onend = () => {
-        if (run !== state.speechRun) return;
-        setTimeout(() => playSegment(index + 1), /[.!?]$/.test(segments[index]) ? 220 : 100);
-      };
-      utterance.onerror = finish;
-      window.speechSynthesis.speak(utterance);
-    };
-    setStage("idle", "한국어 면접관 음성을 준비하고 있어요…");
-    if (voice) playSegment(0);
-    else {
-      let started = false;
-      const begin = () => {
-        if (started || run !== state.speechRun) return;
-        started = true;
-        playSegment(0);
-      };
-      window.speechSynthesis.addEventListener("voiceschanged", begin, { once: true });
-      setTimeout(begin, 600);
-    }
-  }
-
   async function speakOpenAIQuestion() {
     if (!state.running || !state.questions[state.index]) return;
-    if (!TTS_ENDPOINT) {
-      speakBrowserQuestion();
-      return;
-    }
     stopListening(false);
     stopQuestionAudio();
     const run = ++state.speechRun;
@@ -267,13 +205,16 @@
       audio.onended = finishSpeech;
       audio.onerror = () => {
         if (run !== state.speechRun) return;
-        speakBrowserQuestion();
+        setStage("idle", "음성을 재생하지 못했어요. ‘질문 다시 듣기’를 눌러주세요.");
+        $("#remoteReplay").disabled = false;
       };
       await audio.play();
     } catch (error) {
       if (error.name === "AbortError" || run !== state.speechRun) return;
-      $("#remoteSupport").innerHTML = "<b>기기 한국어 음성으로 재생 중이에요.</b><br>별도의 서버 설정 없이 면접 연습을 계속할 수 있어요.";
-      speakBrowserQuestion();
+      setStage("idle", "면접관 음성을 불러오지 못했어요.");
+      $("#remoteReplay").disabled = false;
+      $("#remoteMic").disabled = !state.recognition;
+      $("#remoteSupport").innerHTML = `<b>OpenAI 면접관 음성을 불러오지 못했어요.</b><br>${safe(error.message)} · Render 음성 서버 상태를 확인해주세요.`;
     } finally {
       if (state.questionAudioRequest === controller) state.questionAudioRequest = null;
     }
@@ -585,7 +526,7 @@
     }
     const voiceNotice = document.createElement("div");
     voiceNotice.className = "ai-voice-notice";
-    voiceNotice.textContent = "안내: 면접관 음성은 기기의 한국어 음성 또는 OpenAI AI 음성으로 재생됩니다.";
+    voiceNotice.textContent = "안내: 면접관 음성은 OpenAI AI로 생성되며 실제 사람의 녹음이 아닙니다.";
     $("#remoteSupport")?.insertAdjacentElement("beforebegin", voiceNotice);
     prepareRecognition();
     wire();

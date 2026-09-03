@@ -14,7 +14,7 @@ OPENAI_SPEECH_URL = "https://api.openai.com/v1/audio/speech"
 VOICE_PROFILES = {
     "fact": {
         "voice": "coral",
-        "speed": 0.93,
+        "speed": 1.05,
         "instructions": (
             "자연스러운 한국어를 사용하는 젊고 또렷한 여성 기업 면접관처럼 말하세요. "
             "꼼꼼하고 논리적이며 지원자 답변의 허점을 정확히 짚는 스타일입니다. "
@@ -36,7 +36,7 @@ VOICE_PROFILES = {
     },
     "strict": {
         "voice": "marin",
-        "speed": 0.91,
+        "speed": 1.02,
         "instructions": (
             "자연스러운 한국어를 사용하는 경력 많은 여성 관리자처럼 낮고 단호한 목소리로 말하세요. "
             "지원자의 답변을 냉정하게 검증하며 질문을 짧고 분명하게 전달하세요. "
@@ -58,7 +58,7 @@ allowed_origins = [
     origin.strip()
     for origin in os.getenv(
         "ALLOWED_ORIGINS",
-        "https://simhanna.github.io,http://localhost:8000,http://127.0.0.1:8000",
+        "https://simhanna.github.io,https://myeonjeopkok.onrender.com,http://localhost:8000,http://127.0.0.1:8000",
     ).split(",")
     if origin.strip()
 ]
@@ -89,6 +89,11 @@ def enforce_rate_limit(request: Request) -> None:
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "model": "gpt-4o-mini-tts"}
+
+
+@app.get("/")
+def root() -> dict[str, str]:
+    return {"service": "면접콕 OpenAI TTS API", "status": "ok", "health": "/health"}
 
 
 @app.post("/tts")

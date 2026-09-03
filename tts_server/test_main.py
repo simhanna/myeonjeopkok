@@ -45,9 +45,9 @@ class TtsApiTests(unittest.TestCase):
     @patch("main.httpx.AsyncClient", FakeAsyncClient)
     def test_each_interviewer_uses_a_distinct_profile(self):
         expected = {
-            "fact": ("coral", 0.93, "젊고 또렷한 여성"),
+            "fact": ("coral", 1.05, "젊고 또렷한 여성"),
             "manager": ("cedar", 0.88, "중년 남성"),
-            "strict": ("marin", 0.91, "여성 관리자"),
+            "strict": ("marin", 1.02, "여성 관리자"),
         }
         for interviewer, (voice, speed, phrase) in expected.items():
             response = self.client.post(
