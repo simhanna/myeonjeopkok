@@ -95,6 +95,8 @@
     const config = interviewerMap[key];
     $$(".interviewer-option").forEach(button => button.classList.toggle("on", button.dataset.interviewer === key));
     $("#remoteInterviewerImage").src = config.image;
+    $("#remoteMouthLayer").src = config.image;
+    $(".interviewer-stage").dataset.interviewer = key;
     $("#remoteInterviewerName").textContent = config.name;
     setStage("idle", config.prompt);
   }
