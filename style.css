@@ -169,6 +169,11 @@ input:focus, textarea:focus, select:focus { border-color: #8db8f1; }
 .review-score { height: 7px; margin: 12px 0 18px; border-radius: 99px; overflow: hidden; background: #e9eef5; }
 .review-score span { display: block; height: 100%; border-radius: inherit; background: var(--blue); }
 .feedback-list { padding-left: 18px; color: var(--muted); font-size: 12px; line-height: 1.8; }
+.sentence-feedback { display: grid; gap: 10px; }
+.sentence-feedback article { padding: 11px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface-soft); }
+.sentence-feedback small { color: var(--muted); font-size: 9px; }
+.sentence-feedback p { margin: 5px 0; color: #526d8f; font-size: 10px; line-height: 1.6; }
+.sentence-feedback button { padding-left: 0; font-size: 10px; }
 
 .interview-room { max-width: 850px; padding: 30px; margin: 0 auto; }
 .level-picker { display: flex; align-items: center; gap: 7px; margin-bottom: 22px; }

@@ -3,6 +3,7 @@ const state = {
   stories: readStore("interview-stories", []),
   intro: localStorage.getItem("interview-intro") || "",
   cover: localStorage.getItem("interview-cover") || "",
+  coverSuggestions: [],
   currentAnalysis: null,
   questionIndex: 0,
   recording: false,
@@ -150,6 +151,14 @@ function bindIntro() {
     coverText.value = document.getElementById("draftPreviewText").textContent.slice(0, 500); coverText.dispatchEvent(new Event("input")); toast("예시를 작성칸에 옮겼어요.");
   });
   document.getElementById("reviewCoverButton").addEventListener("click", reviewCover);
+  document.getElementById("coverFeedback").addEventListener("click", event => {
+    const button = event.target.closest("[data-apply-suggestion]");
+    if (!button) return;
+    const suggestion = state.coverSuggestions[Number(button.dataset.applySuggestion)];
+    const current = coverText.value;
+    coverText.value = current.includes(suggestion.original) ? current.replace(suggestion.original, suggestion.revised).slice(0, 500) : suggestion.revised.slice(0, 500);
+    coverText.dispatchEvent(new Event("input")); button.textContent = "반영 완료 ✓"; button.disabled = true;
+  });
   document.getElementById("saveCoverButton").addEventListener("click", () => {
     state.cover = coverText.value.trim(); localStorage.setItem("interview-cover", state.cover); renderAll(); toast("자기소개서를 저장했어요.");
   });
@@ -174,12 +183,19 @@ function reviewCover() {
   const concrete = (text.match(/\d+|결과|성과|개선|달성|완료/g) || []).length;
   const action = (text.match(/직접|분석|제안|실행|조율|설계|개발|해결/g) || []).length;
   const score = Math.min(95, 55 + Math.min(20, concrete * 5) + Math.min(20, action * 4));
-  const feedback = [];
-  if (concrete < 2) feedback.push("결과를 수치나 전후 변화로 한 번 더 구체화해 보세요.");
-  if (action < 2) feedback.push("팀이 아닌 ‘내가 직접 한 행동’을 동사로 보여주세요.");
-  if (text.length > 700) feedback.push("핵심 메시지가 흐려지지 않도록 반복 문장을 줄여보세요.");
-  if (!feedback.length) feedback.push("경험, 행동, 결과의 연결이 선명해요. 첫 문장만 더 간결하게 다듬어 보세요.");
-  document.getElementById("coverFeedback").innerHTML = `<h3>내용 분석 <strong>${score}점</strong></h3><div class="review-score"><span style="width:${score}%"></span></div><ul class="feedback-list">${feedback.map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
+  const sentences = text.split(/(?<=[.!?。])\s+/).filter(Boolean).slice(0, 4);
+  state.coverSuggestions = sentences.map(sentence => suggestSentence(sentence));
+  document.getElementById("coverFeedback").innerHTML = `<h3>문장별 분석 <strong>${score}점</strong></h3><div class="review-score"><span style="width:${score}%"></span></div><div class="sentence-feedback">${state.coverSuggestions.map((item, index) => `<article><small>${escapeHtml(item.reason)}</small><p>${escapeHtml(item.revised)}</p><button class="text-button" data-apply-suggestion="${index}" type="button">추천 문장 반영 →</button></article>`).join("")}</div>`;
+}
+
+function suggestSentence(sentence) {
+  const role = state.jobs[0]?.role || "지원 직무";
+  if (/열심히|최선을|성실히/.test(sentence)) return { original: sentence, reason: "추상적인 표현을 실제 행동으로 바꿨어요.", revised: sentence.replace(/열심히|최선을 다해|성실히/g, "우선순위를 정하고 끝까지 실행하며") };
+  if (/맡은 역할.*행동|필요한 행동/.test(sentence)) return { original: sentence, reason: "역할과 행동을 더 분명하게 표현했어요.", revised: "저는 문제의 원인을 정리하고 역할별 우선순위를 제안한 뒤, 핵심 과제를 직접 실행했습니다." };
+  if (/그 결과/.test(sentence) && !/\d/.test(sentence)) return { original: sentence, reason: "결과의 전후 변화를 보여주도록 다듬었어요.", revised: `${sentence.replace(/[.]?$/, "")} 이전보다 처리 과정이 단축되고 팀의 목표 달성에 기여했습니다.` };
+  if (/기여|활용/.test(sentence)) return { original: sentence, reason: "지원 직무와의 연결을 선명하게 했어요.", revised: `이 경험에서 기른 문제 해결력과 협업 역량을 ${role}에서 발휘해 맡은 업무의 성과로 연결하겠습니다.` };
+  if (sentence.length > 80) return { original: sentence, reason: "긴 문장을 핵심 중심으로 정리했어요.", revised: sentence.replace(/ 그리고 | 또한 | 하지만 |, /, ". ") };
+  return { original: sentence, reason: "본인이 직접 한 행동이 보이도록 보완했어요.", revised: `${sentence.replace(/[.]?$/, "")} 이 과정에서 제가 직접 판단하고 실행한 행동을 중심으로 성과를 만들었습니다.` };
 }
 
 function bindPractice() {
