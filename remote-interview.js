@@ -8,6 +8,7 @@
       name: "한지우 면접관",
       image: "s/g2.png",
       talkImage: "s/g2-talk.png",
+      gender: "female",
       difficulty: "팩트형",
       prompt: "젊고 꼼꼼합니다. 뼈를 때리듯 직설적이지만 정확한 근거로 허점을 짚어 반박하기 어려운 질문을 합니다."
     },
@@ -15,6 +16,7 @@
       name: "박준호 부장",
       image: "s/bv.png",
       talkImage: "s/bv-talk.png",
+      gender: "male",
       difficulty: "인자한 부장님형",
       prompt: "말투는 인자하고 편안하지만 답변의 역할, 행동, 결과를 하나씩 놓치지 않고 깐깐하게 확인합니다."
     },
@@ -22,6 +24,7 @@
       name: "김서현 부장",
       image: "s/g1.png",
       talkImage: "s/g1-talk.png",
+      gender: "female",
       difficulty: "까칠한 부장님형",
       prompt: "경력이 느껴지는 까칠하고 냉정한 여자 부장님 스타일로, 애매한 표현을 넘기지 않고 성과와 책임 범위를 집요하게 확인합니다."
     }
@@ -134,17 +137,28 @@
   function koreanVoice() {
     const voices = speechSynthesis.getVoices();
     const korean = voices.filter(voice => /^ko/i.test(voice.lang) || voice.lang.includes("KR"));
-    const preferredGender = state.interviewer === "manager"
-      ? /InJoon|GookMin|Hyunsu|Male|남성/i
-      : /SunHi|Yuna|Female|여성/i;
-    return korean.sort((a, b) => {
+    const wantsMale = interviewerMap[state.interviewer].gender === "male";
+    const genderPattern = wantsMale
+      ? /InJoon|BongJin|GookMin|Hyunsu|YoungMin|Male|남성/i
+      : /SunHi|Yuna|Heami|Female|여성/i;
+    const rank = list => [...list].sort((a, b) => {
       const score = voice =>
         (/Natural|Neural/i.test(voice.name) ? 100 : 0) +
         (/Online/i.test(voice.name) ? 40 : 0) +
-        (preferredGender.test(voice.name) ? 25 : 0) +
         (!voice.localService ? 10 : 0);
       return score(b) - score(a);
-    })[0] || null;
+    });
+    const genderMatched = rank(korean.filter(voice => genderPattern.test(voice.name)));
+    return genderMatched[0] || rank(korean)[0] || null;
+  }
+
+  function voiceMatchesCharacter(voice) {
+    if (!voice) return false;
+    const wantsMale = interviewerMap[state.interviewer].gender === "male";
+    const pattern = wantsMale
+      ? /InJoon|BongJin|GookMin|Hyunsu|YoungMin|Male|남성/i
+      : /SunHi|Yuna|Heami|Female|여성/i;
+    return pattern.test(voice.name);
   }
 
   function speechSegments(text) {
@@ -175,7 +189,9 @@
       const utterance = new SpeechSynthesisUtterance(segments[index]);
       utterance.lang = "ko-KR";
       utterance.rate = state.interviewer === "strict" ? 0.97 : state.interviewer === "manager" ? 0.91 : 0.94;
-      utterance.pitch = state.interviewer === "manager" ? 0.88 : state.interviewer === "strict" ? 0.95 : 0.99;
+      utterance.pitch = state.interviewer === "manager"
+        ? (voiceMatchesCharacter(voice) ? 0.9 : 0.72)
+        : state.interviewer === "strict" ? 0.96 : 1.03;
       utterance.volume = 1;
       if (voice) utterance.voice = voice;
       utterance.onstart = () => {
@@ -193,7 +209,10 @@
     const beginNaturalSpeech = () => {
       if (run !== state.speechRun) return;
       voice = koreanVoice();
-      if (status) status.dataset.voice = voice?.name || "browser-default";
+      if (status) {
+        status.dataset.voice = voice?.name || "browser-default";
+        status.dataset.voiceGender = voiceMatchesCharacter(voice) ? "matched" : "pitch-adjusted";
+      }
       speakSegment(0);
     };
     if (voice) beginNaturalSpeech();
