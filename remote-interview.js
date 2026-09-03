@@ -4,27 +4,30 @@
   const $ = selector => document.querySelector(selector);
   const $$ = selector => [...document.querySelectorAll(selector)];
   const interviewerMap = {
-    friendly: {
-      name: "김하늘 면접관",
-      image: "s/g2.png",
-      difficulty: "착한맛",
-      prompt: "편안하게 답변의 배경과 배운 점을 확인합니다."
+    fact: {
+      name: "한지우 면접관",
+      image: "s/g1.png",
+      talkImage: "s/g1-talk.png",
+      difficulty: "팩트형",
+      prompt: "젊고 꼼꼼합니다. 뼈를 때리듯 직설적이지만 정확한 근거로 허점을 짚어 반박하기 어려운 질문을 합니다."
     },
-    standard: {
-      name: "박준호 면접관",
+    manager: {
+      name: "박준호 부장",
       image: "s/bv.png",
-      difficulty: "오리지널",
-      prompt: "역할, 행동, 결과를 중심으로 실무 적합성을 확인합니다."
+      talkImage: "s/bv-talk.png",
+      difficulty: "인자한 부장님형",
+      prompt: "말투는 인자하고 편안하지만 답변의 역할, 행동, 결과를 하나씩 놓치지 않고 깐깐하게 확인합니다."
     },
     strict: {
-      name: "최서윤 면접관",
-      image: "s/g1.png",
-      difficulty: "매운맛",
-      prompt: "답변의 근거와 구체적인 성과를 꼼꼼하게 확인합니다."
+      name: "김서현 부장",
+      image: "s/g2.png",
+      talkImage: "s/g2-talk.png",
+      difficulty: "까칠한 부장님형",
+      prompt: "까칠하고 냉정한 여자 부장님 스타일로, 애매한 표현을 넘기지 않고 성과와 책임 범위를 집요하게 확인합니다."
     }
   };
   const state = {
-    interviewer: "friendly",
+    interviewer: "fact",
     project: null,
     questions: [],
     answers: [],
@@ -61,7 +64,7 @@
     const tailored = cover
       ? "자기소개서에 작성한 경험에서 본인이 직접 수행한 행동과 결과를 구체적으로 설명해주세요."
       : "본인의 강점을 보여주는 대표적인 경험을 설명해주세요.";
-    return [
+    const questions = [
       `${target}의 ${role}에 지원한 이유를 말씀해주세요.`,
       strengthQuestion,
       tailored,
@@ -70,6 +73,32 @@
         ? `${target} 입학 후 이루고 싶은 학업 목표와 계획을 말씀해주세요.`
         : `${target} 입사 후 이루고 싶은 목표와 기여 방안을 말씀해주세요.`
     ];
+    if (state.interviewer === "manager") return questions.map((question, index) => index
+      ? `좋습니다. 한 가지만 더 구체적으로 확인하겠습니다. ${question}`
+      : question);
+    if (state.interviewer === "fact") return [
+      `${target}의 ${role}에 지원했다고 했는데, 다른 지원자 대신 본인을 선택해야 하는 명확한 이유가 무엇인가요?`,
+      `${role} 역량이 있다고 판단할 수 있는 행동과 결과를 수치나 변화로 증명해주세요.`,
+      cover
+        ? "자기소개서의 경험에서 본인이 빠졌어도 같은 결과가 나왔을 것 같은데, 본인만의 기여는 정확히 무엇이었나요?"
+        : "강점이라고 말한 내용이 단순한 자기평가가 아니라는 객관적인 근거를 말씀해주세요.",
+      "협업 갈등을 해결했다고 했는데, 상대방이 양보한 것을 본인의 해결 능력이라고 해석한 것은 아닌가요?",
+      school
+        ? `말씀한 학업 계획이 꼭 ${target} ${role}여야만 가능한 이유를 설명해주세요.`
+        : `말씀한 목표가 본인의 성장뿐 아니라 ${target}에 실제로 어떤 이익을 주는지 설명해주세요.`
+    ];
+    if (state.interviewer === "strict") return [
+      `${target}의 ${role} 지원 동기가 본인 입장에서만 좋은 이야기로 들리는데, 우리 지원처가 얻는 것은 정확히 무엇인가요?`,
+      `본인이 ${role} 역량을 갖췄다고 했는데, 그 주장을 검증할 수 있는 수치와 결과부터 말씀해보세요.`,
+      cover
+        ? "자기소개서 내용이 다소 포장된 것 같습니다. 본인이 실제로 한 행동과 다른 사람이 한 일을 명확히 구분해주세요."
+        : "강점이라는 표현은 누구나 할 수 있습니다. 실패하거나 부족했던 상황에서도 같은 강점이 드러났다는 근거가 있나요?",
+      "갈등을 해결했다고 했는데, 상대방 입장에서는 본인이 갈등의 원인이었을 가능성은 검토했나요?",
+      school
+        ? `이 정도 계획이라면 다른 학교에서도 가능한데, 반드시 ${target} ${role}여야 하는 이유가 있나요?`
+        : `말씀한 목표가 실제 업무 성과로 이어지지 않는다면 회사가 본인을 계속 선택해야 할 이유는 무엇인가요?`
+    ];
+    return questions;
   }
 
   function fillerCount(text) {
@@ -95,7 +124,7 @@
     const config = interviewerMap[key];
     $$(".interviewer-option").forEach(button => button.classList.toggle("on", button.dataset.interviewer === key));
     $("#remoteInterviewerImage").src = config.image;
-    $("#remoteMouthLayer").src = config.image;
+    $("#remoteMouthLayer").src = config.talkImage;
     $(".interviewer-stage").dataset.interviewer = key;
     $("#remoteInterviewerName").textContent = config.name;
     setStage("idle", config.prompt);
@@ -112,13 +141,13 @@
     speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(state.questions[state.index]);
     utterance.lang = "ko-KR";
-    utterance.rate = state.interviewer === "strict" ? 1.04 : state.interviewer === "friendly" ? 0.94 : 1;
-    utterance.pitch = state.interviewer === "standard" ? 0.86 : 1;
+    utterance.rate = state.interviewer === "strict" ? 1.05 : state.interviewer === "manager" ? 0.94 : 1.01;
+    utterance.pitch = state.interviewer === "manager" ? 0.86 : 1;
     const voice = koreanVoice();
     if (voice) utterance.voice = voice;
     utterance.onstart = () => setStage("speaking", "질문을 읽고 있어요.");
     utterance.onend = () => {
-      setStage("idle", "답변을 시작하면 집중해서 듣겠습니다.");
+      setStage("idle", "답변을 기다리고 있어요");
       $("#remoteMic").disabled = false;
       $("#remoteMic").classList.add("ready");
     };
@@ -266,6 +295,18 @@
       finishInterview();
       return;
     }
+    if (state.interviewer === "fact" || state.interviewer === "strict" || state.interviewer === "manager") {
+      let critique = answer.length < 80
+        ? "방금 답변은 설명이 짧고 근거가 부족합니다."
+        : !/결과|성과|개선|달성|변화/.test(answer)
+          ? "방금 답변에는 행동 이후의 결과가 보이지 않습니다."
+          : !/\d/.test(answer)
+            ? "방금 답변에는 객관적으로 확인할 수 있는 수치가 없습니다."
+            : "말씀하신 내용은 이해했습니다. 다만 본인의 기여를 더 분명히 확인하겠습니다.";
+      if (state.interviewer === "manager") critique = `잘 들었습니다. 다만 확인할 부분이 있군요. ${critique}`;
+      if (state.interviewer === "strict") critique = `핵심이 빠졌네요. ${critique}`;
+      state.questions[state.index + 1] = `${critique} ${state.questions[state.index + 1]}`;
+    }
     state.index += 1;
     showQuestion();
   }
@@ -350,9 +391,13 @@
   }
 
   function initialize() {
+    Object.values(interviewerMap).forEach(config => {
+      const image = new Image();
+      image.src = config.talkImage;
+    });
     prepareRecognition();
     wire();
-    selectInterviewer("friendly");
+    selectInterviewer("fact");
     refreshProject();
     document.documentElement.dataset.remoteInterviewReady = "true";
   }
