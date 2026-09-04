@@ -310,7 +310,7 @@
 
     const targetLines = String(project.targetName || "").split(/\s*(?:\/|\n)\s*/).filter(Boolean);
     const roleLines = String(project.role || "").split(/\s*(?:\/|\n)\s*/).filter(Boolean);
-    const roleMeta = [...roleLines, project.field].filter((value, index, values) => value && values.findIndex(item => normalizedProjectValue(item) === normalizedProjectValue(value)) === index);
+    const roleMeta = [project.field, ...roleLines].filter((value, index, values) => value && values.findIndex(item => normalizedProjectValue(item) === normalizedProjectValue(value)) === index);
     const analysis = project.aiAnalysis || autoSummary(project);
     const showMore = analysis.length > 85;
     return `<article class="project-card saved-project-card ${String(project.id) === String(activeProjectId) ? "active" : ""}" tabindex="0" data-project-load="${project.id}">
