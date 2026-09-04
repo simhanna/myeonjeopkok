@@ -65,7 +65,8 @@
     questionAudioRequest: null,
     questionUtterance: null,
     ttsUnavailable: !USE_OPENAI_TTS,
-    speakingInterviewer: null
+    speakingInterviewer: null,
+    usingGenericProject: false
   };
 
   const TTS_ENDPOINT = window.MYEONJEOPKOK_TTS_API
@@ -80,6 +81,16 @@
 
   function getProject() {
     return window.MyeonjeopkokProjects?.getActiveProject?.() || null;
+  }
+
+  function genericInterviewProject() {
+    return {
+      type: "company",
+      targetName: "지원 기업",
+      role: "지원 직무",
+      covers: [],
+      expectedQuestions: []
+    };
   }
 
   function projectQuestions(project) {
@@ -506,13 +517,13 @@
   }
 
   function startInterview() {
-    state.project = getProject();
-    if (!state.project) {
+    const savedProject = getProject();
+    state.usingGenericProject = !savedProject;
+    state.project = savedProject || genericInterviewProject();
+    if (!savedProject) {
       $("#remoteNoProject").style.display = "block";
       $("#remoteWorkspace").style.display = "block";
-      $("#remoteStart").disabled = true;
-      setStage("idle", "프로젝트를 선택하면 이 면접관과 연습할 수 있어요.");
-      return;
+      $("#remoteProjectName").textContent = "기본 면접 연습";
     }
     state.questions = projectQuestions(state.project);
     state.answers = [];
@@ -520,7 +531,9 @@
     state.running = true;
     state.interviewStartedAt = Date.now();
     $("#remoteStart").textContent = "처음부터 다시 시작";
-    $("#remoteSupport").innerHTML = "<b>비대면 면접이 시작됐어요.</b><br>질문을 들은 뒤 마이크 버튼을 눌러 답변해주세요.";
+    $("#remoteSupport").innerHTML = state.usingGenericProject
+      ? "<b>기본 비대면 면접이 시작됐어요.</b><br>프로젝트 없이 공통 면접 질문으로 연습합니다."
+      : "<b>비대면 면접이 시작됐어요.</b><br>질문을 들은 뒤 마이크 버튼을 눌러 답변해주세요.";
     showQuestion();
   }
 
@@ -587,7 +600,9 @@
       speech: result.speech,
       fillers: result.fillers
     };
-    window.MyeonjeopkokProjects?.saveRemoteInterview?.(record);
+    if (!state.usingGenericProject) {
+      window.MyeonjeopkokProjects?.saveRemoteInterview?.(record);
+    }
     state.running = false;
     $("#remoteNext").disabled = true;
     $("#remoteNext").classList.remove("active");
@@ -595,7 +610,10 @@
     $("#remoteReplay").disabled = true;
     resetMicButton();
     setStage("idle", "면접이 종료되었습니다. 수고하셨습니다.");
-    $("#remoteSupport").innerHTML = `<div class="remote-result"><h3>비대면 면접 완료 · ${result.total}점</h3><div>구체성 ${result.specific} · STAR 구조 ${result.star} · 말하기 ${result.speech} · 습관어 ${result.fillers}회</div><div class="muted" style="margin-top:7px">현재 프로젝트의 면접 기록에 저장했습니다.</div></div>`;
+    const saveMessage = state.usingGenericProject
+      ? "프로젝트를 만들면 다음 면접부터 기록을 저장할 수 있어요."
+      : "현재 프로젝트의 면접 기록에 저장했습니다.";
+    $("#remoteSupport").innerHTML = `<div class="remote-result"><h3>비대면 면접 완료 · ${result.total}점</h3><div>구체성 ${result.specific} · STAR 구조 ${result.star} · 말하기 ${result.speech} · 습관어 ${result.fillers}회</div><div class="muted" style="margin-top:7px">${saveMessage}</div></div>`;
   }
 
   function refreshProject() {
@@ -603,14 +621,14 @@
     const exists = !!state.project;
     $("#remoteNoProject").style.display = exists ? "none" : "block";
     $("#remoteWorkspace").style.display = "block";
-    $("#remoteStart").disabled = !exists;
+    $("#remoteStart").disabled = false;
     if (exists) {
       $("#remoteProjectName").textContent = `${state.project.targetName} · ${state.project.role}`;
       $("#remoteQuestion").textContent = "면접 시작 버튼을 누르면 현재 프로젝트에 맞는 질문을 음성으로 읽어드려요.";
     } else {
-      $("#remoteProjectName").textContent = "프로젝트를 먼저 선택해주세요";
-      $("#remoteQuestion").textContent = "면접관을 미리 선택할 수 있어요. 프로젝트를 만들면 면접을 시작할 수 있습니다.";
-      setStage("idle", "프로젝트를 선택하면 이 면접관과 연습할 수 있어요.");
+      $("#remoteProjectName").textContent = "기본 면접 연습";
+      $("#remoteQuestion").textContent = "프로젝트가 없어도 면접 시작 버튼을 눌러 공통 질문으로 연습할 수 있어요.";
+      setStage("idle", "면접관을 선택한 뒤 바로 연습을 시작해보세요.");
     }
   }
 
