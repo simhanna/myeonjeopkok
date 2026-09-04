@@ -79,6 +79,8 @@
         interviews: index === 0 ? legacyHistory : [],
         expectedQuestions: [],
         experienceIds: [],
+        favorite: !!company.fav,
+        aiAnalysis: company.summary || "",
         createdAt: company.date || todayText(),
         updatedAt: company.date || todayText()
       }));
@@ -129,7 +131,7 @@
       role: project.role,
       field: project.field,
       interviewDate: project.interviewDate,
-      fav: false,
+      fav: !!project.favorite,
       date: project.updatedAt || project.createdAt,
       summary: project.organizationInfo || autoSummary(project)
     }]);
@@ -223,6 +225,21 @@
     go("profile");
   }
 
+  function normalizedProjectValue(value) {
+    return String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+  }
+
+  function hasIdenticalProject(candidate, ignoredId) {
+    const fields = [
+      "type", "targetName", "role", "field", "organizationInfo",
+      "idealTalent", "coreCompetencies", "interviewDate", "scheduleNotes"
+    ];
+    return projects.some(project => {
+      if (String(project.id) === String(ignoredId)) return false;
+      return fields.every(field => normalizedProjectValue(project[field]) === normalizedProjectValue(candidate[field]));
+    });
+  }
+
   function saveProject(options = {}) {
     if (!validateProjectForm()) {
       alert("기업·학교, 직무·학과, 지원 분야를 모두 입력해주세요.");
@@ -242,6 +259,11 @@
       scheduleNotes: $("#scheduleNotes").value.trim(),
       updatedAt: stamp
     };
+    if (hasIdenticalProject(values, existing?.id)) {
+      alert("이미 동일한 정보가 저장되어 있습니다.");
+      return null;
+    }
+    values.aiAnalysis = autoSummary(values);
     let project;
     if (existing) {
       Object.assign(existing, values);
@@ -255,6 +277,7 @@
         interviews: [],
         expectedQuestions: [],
         experienceIds: [],
+        favorite: false,
         createdAt: stamp
       };
       projects.unshift(project);
@@ -273,15 +296,48 @@
     const linkedExperiences = (project.experienceIds || []).length;
     const covers = (project.covers || []).length;
     const interviews = (project.interviews || []).length;
-    return `<article class="project-card ${String(project.id) === String(activeProjectId) ? "active" : ""}" tabindex="0" data-project-open="${project.id}">
-      <div class="project-dday">${safe(dday(project.interviewDate))}</div>
-      <div class="muted">${project.type === "school" ? "대학 입학" : "기업 취업"} 프로젝트</div>
-      <h4>${safe(project.targetName)}</h4>
-      <div>${safe(project.role)}</div>
-      <div class="project-meta"><span class="project-tag">${safe(project.field)}</span><span class="project-tag">경험 ${linkedExperiences}</span><span class="project-tag">자소서 ${covers}</span><span class="project-tag">면접 ${interviews}</span></div>
-      <div class="muted">최근 수정 ${safe(project.updatedAt || project.createdAt)}</div>
-      ${dashboard ? `<div class="project-card-actions"><button data-project-edit="${project.id}">수정</button><button class="danger" data-project-delete="${project.id}">삭제</button></div>` : ""}
+    if (dashboard) {
+      return `<article class="project-card ${String(project.id) === String(activeProjectId) ? "active" : ""}" tabindex="0" data-project-open="${project.id}">
+        <div class="project-dday">${safe(dday(project.interviewDate))}</div>
+        <div class="muted">${project.type === "school" ? "대학 입학" : "기업 취업"} 프로젝트</div>
+        <h4>${safe(project.targetName)}</h4>
+        <div>${safe(project.role)}</div>
+        <div class="project-meta"><span class="project-tag">${safe(project.field)}</span><span class="project-tag">경험 ${linkedExperiences}</span><span class="project-tag">자소서 ${covers}</span><span class="project-tag">면접 ${interviews}</span></div>
+        <div class="muted">최근 수정 ${safe(project.updatedAt || project.createdAt)}</div>
+        <div class="project-card-actions"><button data-project-edit="${project.id}">수정</button><button class="danger" data-project-delete="${project.id}">삭제</button></div>
+      </article>`;
+    }
+
+    const targetLines = String(project.targetName || "").split(/\s*(?:\/|\n)\s*/).filter(Boolean);
+    const roleLines = String(project.role || "").split(/\s*(?:\/|\n)\s*/).filter(Boolean);
+    const roleMeta = [...roleLines, project.field].filter((value, index, values) => value && values.findIndex(item => normalizedProjectValue(item) === normalizedProjectValue(value)) === index);
+    const analysis = project.aiAnalysis || autoSummary(project);
+    const showMore = analysis.length > 85;
+    return `<article class="project-card saved-project-card ${String(project.id) === String(activeProjectId) ? "active" : ""}" tabindex="0" data-project-load="${project.id}">
+      <button class="star project-favorite ${project.favorite ? "on" : ""}" type="button" data-project-favorite="${project.id}" aria-label="${project.favorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}" aria-pressed="${project.favorite ? "true" : "false"}">★</button>
+      <div class="saved-project-type">${project.type === "school" ? "대학 입학" : "기업 취업"}</div>
+      <div class="saved-project-names">
+        <h4>${safe(targetLines[0] || project.targetName)}</h4>
+        ${targetLines.slice(1).map(name => `<div class="saved-project-secondary">${safe(name)}</div>`).join("")}
+      </div>
+      <div class="saved-project-role">${safe(roleMeta.join(" · "))}</div>
+      <div class="project-ai-summary">${safe(analysis)}</div>
+      ${showMore ? `<button class="project-summary-toggle" type="button" data-project-summary-toggle="${project.id}" aria-expanded="false">더보기</button>` : ""}
+      <div class="saved-project-date">저장 ${safe(project.updatedAt || project.createdAt)}</div>
     </article>`;
+  }
+
+  function loadProjectIntoForm(id) {
+    const project = projectById(id);
+    if (!project) return;
+    activeProjectId = String(project.id);
+    localStorage.setItem(ACTIVE_KEY, activeProjectId);
+    syncLegacy(project);
+    creatingProject = false;
+    fillProjectForm(project);
+    $("#saveCompany").textContent = "프로젝트 수정 저장";
+    renderProjects();
+    go("profile");
   }
 
   function bindProjectCards() {
@@ -299,6 +355,36 @@
           open(event);
         }
       };
+    });
+    $$("[data-project-load]").forEach(card => {
+      const load = event => {
+        if (event.target.closest("[data-project-favorite],[data-project-summary-toggle]")) return;
+        loadProjectIntoForm(card.dataset.projectLoad);
+      };
+      card.onclick = load;
+      card.onkeydown = event => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          load(event);
+        }
+      };
+    });
+    $$("[data-project-favorite]").forEach(button => button.onclick = event => {
+      event.stopPropagation();
+      const project = projectById(button.dataset.projectFavorite);
+      if (!project) return;
+      project.favorite = !project.favorite;
+      persistProjects();
+      if (String(project.id) === String(activeProjectId)) syncLegacy(project);
+      renderProjects();
+    });
+    $$("[data-project-summary-toggle]").forEach(button => button.onclick = event => {
+      event.stopPropagation();
+      const summary = button.closest(".saved-project-card")?.querySelector(".project-ai-summary");
+      if (!summary) return;
+      const expanded = summary.classList.toggle("expanded");
+      button.textContent = expanded ? "접기" : "더보기";
+      button.setAttribute("aria-expanded", String(expanded));
     });
     $$("[data-project-edit]").forEach(button => button.onclick = event => {
       event.stopPropagation();
@@ -327,9 +413,77 @@
     const side = $("#companyList");
     const empty = '<div class="empty-state">아직 프로젝트가 없어요.<br>새 프로젝트를 만들어 지원 준비를 시작해보세요.</div>';
     if (dashboard) dashboard.innerHTML = projects.length ? projects.map(project => projectCard(project, true)).join("") : empty;
-    if (side) side.innerHTML = projects.length ? projects.map(project => projectCard(project, false)).join("") : '<div class="muted">저장된 프로젝트가 없어요.</div>';
+    const savedProjects = [...projects].sort((a, b) => Number(!!b.favorite) - Number(!!a.favorite));
+    if (side) side.innerHTML = savedProjects.length ? savedProjects.map(project => projectCard(project, false)).join("") : '<div class="muted">저장된 프로젝트가 없어요.</div>';
     bindProjectCards();
     renderRightRecords();
+  }
+
+  function ensureRightCardTabs() {
+    const tabs = $(".company-tabs");
+    const companyList = $("#companyList");
+    const records = $("#rightRecords");
+    if (!tabs || !companyList || !records) return;
+
+    if (!tabs.querySelector('[data-tab="experiences"]')) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.tab = "experiences";
+      button.textContent = "경험·강점";
+      tabs.insertBefore(button, tabs.querySelector('[data-tab="records"]'));
+    }
+    if (!$("#rightExperiences")) {
+      const panel = document.createElement("div");
+      panel.id = "rightExperiences";
+      panel.style.display = "none";
+      companyList.insertAdjacentElement("afterend", panel);
+    }
+
+    $$(".company-tabs button").forEach(button => button.onclick = () => {
+      const tab = button.dataset.tab;
+      $$(".company-tabs button").forEach(item => item.classList.toggle("on", item === button));
+      $("#companyList").style.display = tab === "companies" ? "block" : "none";
+      $("#rightExperiences").style.display = tab === "experiences" ? "block" : "none";
+      $("#rightRecords").style.display = tab === "records" ? "block" : "none";
+      if (tab === "experiences") renderRightExperiences();
+      if (tab === "records") renderRightRecords();
+    });
+  }
+
+  function renderRightExperiences() {
+    const panel = $("#rightExperiences");
+    if (!panel) return;
+    const items = [...vault].sort((a, b) => Number(!!b.favorite) - Number(!!a.favorite));
+    panel.innerHTML = items.length ? items.map(item => `
+      <article class="right-experience-card" tabindex="0" data-right-experience="${item.id}">
+        <button class="star ${item.favorite ? "on" : ""}" type="button" data-right-exp-favorite="${item.id}" aria-label="${item.favorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}">★</button>
+        <b>${safe(item.title)}</b>
+        <div class="right-experience-strength">${safe(item.strengths || "강점 미입력")}</div>
+        <div class="muted">${safe((item.activity || "").slice(0, 90))}${(item.activity || "").length > 90 ? "…" : ""}</div>
+      </article>`).join("") : '<div class="muted">저장된 경험·강점이 없어요.</div>';
+
+    $$("[data-right-experience]").forEach(card => {
+      const open = event => {
+        if (event.target.closest("[data-right-exp-favorite]")) return;
+        go("experience");
+        loadExperienceEditor(card.dataset.rightExperience);
+      };
+      card.onclick = open;
+      card.onkeydown = event => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          open(event);
+        }
+      };
+    });
+    $$("[data-right-exp-favorite]").forEach(button => button.onclick = event => {
+      event.stopPropagation();
+      const item = vault.find(entry => String(entry.id) === String(button.dataset.rightExpFavorite));
+      if (!item) return;
+      item.favorite = !item.favorite;
+      persistVault();
+      renderVault();
+    });
   }
 
   function deleteProject(id) {
@@ -578,6 +732,7 @@
       renderVault();
     });
     $$("[data-exp-link]").forEach(button => button.onclick = () => toggleExperienceLink(button.dataset.expLink));
+    renderRightExperiences();
   }
 
   function toggleExperienceLink(id) {
@@ -871,10 +1026,23 @@
     migrateLegacyData();
     projects = read(PROJECTS_KEY, []);
     vault = read(VAULT_KEY, []);
+    let projectDataUpdated = false;
+    projects.forEach(project => {
+      if (typeof project.favorite !== "boolean") {
+        project.favorite = !!project.fav;
+        projectDataUpdated = true;
+      }
+      if (!project.aiAnalysis) {
+        project.aiAnalysis = autoSummary(project);
+        projectDataUpdated = true;
+      }
+    });
+    if (projectDataUpdated) persistProjects();
     activeProjectId = localStorage.getItem(ACTIVE_KEY);
     if (!projectById() && projects.length) activeProjectId = String(projects[0].id);
     if (activeProjectId) localStorage.setItem(ACTIVE_KEY, activeProjectId);
     syncLegacy(projectById());
+    ensureRightCardTabs();
     wireEvents();
     fillProjectForm(projectById());
     $("#saveCompany").textContent = projectById() ? "프로젝트 수정 저장" : "프로젝트 저장";
