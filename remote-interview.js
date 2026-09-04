@@ -509,7 +509,9 @@
     state.project = getProject();
     if (!state.project) {
       $("#remoteNoProject").style.display = "block";
-      $("#remoteWorkspace").style.display = "none";
+      $("#remoteWorkspace").style.display = "block";
+      $("#remoteStart").disabled = true;
+      setStage("idle", "프로젝트를 선택하면 이 면접관과 연습할 수 있어요.");
       return;
     }
     state.questions = projectQuestions(state.project);
@@ -600,10 +602,15 @@
     state.project = getProject();
     const exists = !!state.project;
     $("#remoteNoProject").style.display = exists ? "none" : "block";
-    $("#remoteWorkspace").style.display = exists ? "block" : "none";
+    $("#remoteWorkspace").style.display = "block";
+    $("#remoteStart").disabled = !exists;
     if (exists) {
       $("#remoteProjectName").textContent = `${state.project.targetName} · ${state.project.role}`;
       $("#remoteQuestion").textContent = "면접 시작 버튼을 누르면 현재 프로젝트에 맞는 질문을 음성으로 읽어드려요.";
+    } else {
+      $("#remoteProjectName").textContent = "프로젝트를 먼저 선택해주세요";
+      $("#remoteQuestion").textContent = "면접관을 미리 선택할 수 있어요. 프로젝트를 만들면 면접을 시작할 수 있습니다.";
+      setStage("idle", "프로젝트를 선택하면 이 면접관과 연습할 수 있어요.");
     }
   }
 
