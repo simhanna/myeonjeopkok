@@ -1,0 +1,7 @@
+.env
+tts_server/.env
+node_modules/
+tts_server/node_modules/
+npm-debug.log*
+__pycache__/
+*.pyc

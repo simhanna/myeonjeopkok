@@ -29,6 +29,19 @@
       prompt: "경력이 느껴지는 까칠하고 냉정한 여자 부장님 스타일로, 애매한 표현을 넘기지 않고 성과와 책임 범위를 집요하게 확인합니다."
     }
   };
+  const interviewerTypeMap = {
+    fact: "factWoman",
+    manager: "kindMan",
+    strict: "strictWoman",
+    factWoman: "factWoman",
+    kindMan: "kindMan",
+    strictWoman: "strictWoman"
+  };
+  const interviewerKeyMap = {
+    factWoman: "fact",
+    kindMan: "manager",
+    strictWoman: "strict"
+  };
   const state = {
     interviewer: "fact",
     project: null,
@@ -50,7 +63,8 @@
     questionAudioUrl: "",
     questionAudioRequest: null,
     questionUtterance: null,
-    ttsUnavailable: false
+    ttsUnavailable: false,
+    speakingInterviewer: null
   };
 
   const TTS_ENDPOINT = window.MYEONJEOPKOK_TTS_API
@@ -127,10 +141,15 @@
   function setStage(mode, message) {
     const stage = $(".interviewer-stage");
     stage?.classList.toggle("speaking", mode === "speaking");
+    stage?.classList.toggle("talking", mode === "speaking");
     stage?.classList.toggle("listening", mode === "listening");
+    const talkingKey = state.speakingInterviewer || state.interviewer;
+    $$(".interviewer-option").forEach(button => {
+      button.classList.toggle("talking", mode === "speaking" && button.dataset.interviewer === talkingKey);
+    });
     const badge = $("#remoteLiveBadge");
     badge?.classList.toggle("live", mode === "listening");
-    if (badge) badge.textContent = mode === "speaking" ? "질문 중" : mode === "listening" ? "답변 듣는 중" : mode === "waiting" ? "답변 대기 중" : "대기 중";
+    if (badge) badge.textContent = mode === "speaking" ? "면접관이 질문하고 있어요" : mode === "listening" ? "답변 듣는 중" : mode === "waiting" ? "답변을 기다리고 있어요" : "대기 중";
     if ($("#remoteInterviewerStatus")) $("#remoteInterviewerStatus").textContent = message || interviewerMap[state.interviewer].prompt;
   }
 
@@ -169,6 +188,9 @@
       state.questionUtterance = null;
     }
     window.speechSynthesis?.cancel();
+    state.speakingInterviewer = null;
+    $(".interviewer-stage")?.classList.remove("speaking", "talking");
+    $$(".interviewer-option").forEach(button => button.classList.remove("talking"));
   }
 
   function browserVoices() {
@@ -188,10 +210,10 @@
     });
   }
 
-  function preferredBrowserVoice(voices) {
+  function preferredBrowserVoice(voices, interviewerKey) {
     const korean = voices.filter(voice => /^ko([-_]|$)/i.test(voice.lang));
     if (!korean.length) return null;
-    const preferredNames = state.interviewer === "manager"
+    const preferredNames = interviewerKey === "manager"
       ? /injoon|in-joon|준호|남성|male/i
       : /sunhi|sun-hi|heami|하미|서현|여성|female|google.*한국/i;
     return korean.find(voice => preferredNames.test(voice.name))
@@ -199,7 +221,7 @@
       || korean[0];
   }
 
-  async function speakBrowserQuestion(run, serverError) {
+  async function speakBrowserQuestion(run, questionText, interviewerKey, serverError) {
     if (!("speechSynthesis" in window) || typeof window.SpeechSynthesisUtterance !== "function") {
       setStage("idle", "이 브라우저에서는 질문 음성을 재생할 수 없어요.");
       $("#remoteReplay").disabled = false;
@@ -209,33 +231,36 @@
     }
 
     const voices = await browserVoices();
-    if (run !== state.speechRun || !state.running) return;
-    const utterance = new SpeechSynthesisUtterance(state.questions[state.index]);
-    const voice = preferredBrowserVoice(voices);
+    if (run !== state.speechRun) return;
+    const utterance = new SpeechSynthesisUtterance(questionText);
+    const voice = preferredBrowserVoice(voices, interviewerKey);
     if (voice) utterance.voice = voice;
     utterance.lang = voice?.lang || "ko-KR";
-    utterance.rate = state.interviewer === "manager" ? 0.88 : state.interviewer === "strict" ? 1.02 : 1;
-    utterance.pitch = state.interviewer === "manager" ? 0.85 : state.interviewer === "strict" ? 0.92 : 1.08;
+    utterance.rate = interviewerKey === "manager" ? 0.88 : interviewerKey === "strict" ? 1.02 : 1;
+    utterance.pitch = interviewerKey === "manager" ? 0.85 : interviewerKey === "strict" ? 0.92 : 1.08;
     utterance.volume = 1;
     state.questionUtterance = utterance;
+    state.speakingInterviewer = interviewerKey;
 
     const finishSpeech = () => {
       if (run !== state.speechRun) return;
       state.questionUtterance = null;
-      setStage("waiting", "답변 대기 중");
+      state.speakingInterviewer = null;
+      setStage("waiting", "답변을 기다리고 있어요");
       $("#remoteMic").disabled = !state.recognition;
       $("#remoteMic").classList.toggle("ready", !!state.recognition);
       $("#remoteReplay").disabled = false;
     };
     utterance.onstart = () => {
       if (run !== state.speechRun) return;
-      setStage("speaking", "질문 중");
+      setStage("speaking", "면접관이 질문하고 있어요");
       $("#remoteSupport").innerHTML = "<b>면접관 질문을 재생하고 있어요.</b><br>기기의 한국어 음성으로 안전하게 재생 중입니다.";
     };
     utterance.onend = finishSpeech;
     utterance.onerror = event => {
       if (run !== state.speechRun || event.error === "canceled" || event.error === "interrupted") return;
       state.questionUtterance = null;
+      state.speakingInterviewer = null;
       setStage("idle", "음성을 재생하지 못했어요. 질문 다시 듣기를 눌러주세요.");
       $("#remoteReplay").disabled = false;
       $("#remoteMic").disabled = !state.recognition;
@@ -245,13 +270,20 @@
     window.speechSynthesis.speak(utterance);
   }
 
-  async function speakOpenAIQuestion() {
-    if (!state.running || !state.questions[state.index]) return;
+  async function speakQuestion(text = state.questions[state.index], interviewerType = state.interviewer) {
+    const questionText = String(text || "").trim();
+    const apiInterviewerType = interviewerTypeMap[interviewerType];
+    if (!questionText) return;
+    if (!apiInterviewerType) {
+      throw new Error("지원하지 않는 면접관 유형입니다.");
+    }
+    const interviewerKey = interviewerKeyMap[apiInterviewerType];
     stopListening(false);
     const run = ++state.speechRun;
     stopQuestionAudio();
+    state.speakingInterviewer = interviewerKey;
     if (state.ttsUnavailable) {
-      await speakBrowserQuestion(run);
+      await speakBrowserQuestion(run, questionText, interviewerKey);
       return;
     }
     const controller = new AbortController();
@@ -264,14 +296,14 @@
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          text: state.questions[state.index],
-          interviewer: state.interviewer
+          text: questionText,
+          interviewerType: apiInterviewerType
         }),
         signal: controller.signal
       });
       if (!response.ok) {
         const detail = await response.json().catch(() => ({}));
-        throw new Error(detail.detail || `음성 서버 오류 (${response.status})`);
+        throw new Error(detail.detail || detail.error || `음성 서버 오류 (${response.status})`);
       }
       const audioBlob = await response.blob();
       if (!audioBlob.size || !/^audio\//i.test(audioBlob.type || "audio/mpeg")) {
@@ -283,26 +315,31 @@
       state.questionAudio = audio;
       const finishSpeech = () => {
         if (run !== state.speechRun) return;
-        setStage("waiting", "답변 대기 중");
+        state.speakingInterviewer = null;
+        setStage("waiting", "답변을 기다리고 있어요");
         $("#remoteMic").disabled = !state.recognition;
         $("#remoteMic").classList.toggle("ready", !!state.recognition);
         $("#remoteReplay").disabled = false;
       };
-      audio.onplay = () => setStage("speaking", "질문 중");
+      audio.onplay = () => setStage("speaking", "면접관이 질문하고 있어요");
       audio.onended = finishSpeech;
       audio.onerror = () => {
         if (run !== state.speechRun) return;
         state.ttsUnavailable = true;
-        speakBrowserQuestion(run, new Error("서버 음성 파일을 재생하지 못했습니다."));
+        speakBrowserQuestion(run, questionText, interviewerKey, new Error("서버 음성 파일을 재생하지 못했습니다."));
       };
       await audio.play();
     } catch (error) {
       if (error.name === "AbortError" || run !== state.speechRun) return;
       state.ttsUnavailable = true;
-      await speakBrowserQuestion(run, error);
+      await speakBrowserQuestion(run, questionText, interviewerKey, error);
     } finally {
       if (state.questionAudioRequest === controller) state.questionAudioRequest = null;
     }
+  }
+
+  function speakOpenAIQuestion() {
+    return speakQuestion(state.questions[state.index], state.interviewer);
   }
 
   function prepareRecognition() {
@@ -620,5 +657,6 @@
     document.documentElement.dataset.remoteInterviewReady = "true";
   }
 
+  window.speakQuestion = speakQuestion;
   initialize();
 })();
