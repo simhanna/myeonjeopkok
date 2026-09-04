@@ -1,6 +1,6 @@
 # 면접콕 OpenAI TTS Node.js 서버
 
-프론트엔드에서 받은 면접 질문을 OpenAI `gpt-4o-mini-tts`로 읽고 MP3로 돌려주는 Express 서버입니다. API 키는 `process.env.OPENAI_API_KEY`에서만 읽으므로 브라우저로 전달되지 않습니다.
+프론트엔드에서 받은 면접 질문을 OpenAI `gpt-4o-mini-tts`로 읽고 MP3로 돌려주는 선택형 Express 서버입니다. 면접콕은 기본적으로 무료 브라우저 음성을 사용하므로 이 서버 없이도 동작합니다. API 키는 `process.env.OPENAI_API_KEY`에서만 읽으므로 브라우저로 전달되지 않습니다.
 
 ## API
 

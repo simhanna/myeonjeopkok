@@ -42,6 +42,7 @@
     kindMan: "manager",
     strictWoman: "strict"
   };
+  const USE_OPENAI_TTS = window.MYEONJEOPKOK_USE_OPENAI_TTS === true;
   const state = {
     interviewer: "fact",
     project: null,
@@ -63,7 +64,7 @@
     questionAudioUrl: "",
     questionAudioRequest: null,
     questionUtterance: null,
-    ttsUnavailable: false,
+    ttsUnavailable: !USE_OPENAI_TTS,
     speakingInterviewer: null
   };
 
@@ -338,7 +339,7 @@
     }
   }
 
-  function speakOpenAIQuestion() {
+  function speakCurrentQuestion() {
     return speakQuestion(state.questions[state.index], state.interviewer);
   }
 
@@ -501,7 +502,7 @@
     startTimer();
     $("#remoteReplay").disabled = false;
     $("#remoteFinish").disabled = false;
-    speakOpenAIQuestion();
+    speakCurrentQuestion();
   }
 
   function startInterview() {
@@ -612,7 +613,7 @@
       if (state.running && !confirm("진행 중인 답변을 지우고 처음부터 다시 시작할까요?")) return;
       startInterview();
     };
-    $("#remoteReplay").onclick = speakOpenAIQuestion;
+    $("#remoteReplay").onclick = speakCurrentQuestion;
     $("#remoteMic").onclick = () => state.listeningRequested ? stopListening() : startListening();
     $("#remoteTranscript").oninput = updateAnswerMeta;
     $("#remoteNext").onclick = nextQuestion;
@@ -648,7 +649,7 @@
     }
     const voiceNotice = document.createElement("div");
     voiceNotice.className = "ai-voice-notice";
-    voiceNotice.textContent = "안내: 면접관 음성은 OpenAI AI로 생성되며 실제 사람의 녹음이 아닙니다.";
+    voiceNotice.textContent = "안내: 면접관 음성은 기기의 한국어 음성을 사용하며 별도 API 비용이 발생하지 않습니다.";
     $("#remoteSupport")?.insertAdjacentElement("beforebegin", voiceNotice);
     prepareRecognition();
     wire();

@@ -1,6 +1,8 @@
-# 면접콕 Node.js TTS 배포 안내
+# 면접콕 음성 및 선택형 Node.js TTS 배포 안내
 
-면접콕은 브라우저가 OpenAI를 직접 호출하지 않습니다. 프론트엔드는 질문과 면접관 유형만 Node.js 백엔드의 `POST /tts`로 보내고, 백엔드가 Render 환경변수의 API 키를 사용해 MP3를 반환합니다.
+면접콕은 기본적으로 비용이 들지 않는 브라우저 한국어 음성을 사용합니다. `OPENAI_API_KEY`나 TTS 백엔드가 없어도 면접 시작, 다음 질문, 질문 다시 듣기가 모두 작동합니다. Chrome보다 Edge에서 자연스러운 한국어 남성·여성 음성을 찾을 가능성이 높습니다.
+
+Node.js 백엔드는 나중에 유료 OpenAI 음성을 선택하고 싶을 때만 사용하는 선택 기능입니다. 브라우저가 OpenAI를 직접 호출하지 않으며, 백엔드가 Render 환경변수의 API 키를 사용해 MP3를 반환합니다.
 
 ## 파일별 역할
 
@@ -11,6 +13,8 @@
 - `render.yaml`: Render Web Service의 빌드·실행·환경변수 설정
 
 ## Render에 배포하기
+
+무료 브라우저 음성만 사용할 때는 이 단계를 진행할 필요가 없습니다.
 
 1. 이 저장소를 GitHub에 올립니다.
 2. Render 대시보드에서 **New > Blueprint**를 선택하고 이 저장소를 연결합니다.
@@ -24,6 +28,7 @@
 ```html
 <script>
   window.MYEONJEOPKOK_TTS_API = "https://<백엔드-서비스>.onrender.com/tts";
+  window.MYEONJEOPKOK_USE_OPENAI_TTS = true;
 </script>
 ```
 
