@@ -48,7 +48,9 @@
     recognitionStarting: false,
     questionAudio: null,
     questionAudioUrl: "",
-    questionAudioRequest: null
+    questionAudioRequest: null,
+    questionUtterance: null,
+    ttsUnavailable: false
   };
 
   const TTS_ENDPOINT = window.MYEONJEOPKOK_TTS_API
@@ -160,13 +162,98 @@
       URL.revokeObjectURL(state.questionAudioUrl);
       state.questionAudioUrl = "";
     }
+    if (state.questionUtterance) {
+      state.questionUtterance.onstart = null;
+      state.questionUtterance.onend = null;
+      state.questionUtterance.onerror = null;
+      state.questionUtterance = null;
+    }
+    window.speechSynthesis?.cancel();
+  }
+
+  function browserVoices() {
+    if (!window.speechSynthesis) return Promise.resolve([]);
+    const available = window.speechSynthesis.getVoices();
+    if (available.length) return Promise.resolve(available);
+    return new Promise(resolve => {
+      let finished = false;
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        window.speechSynthesis.removeEventListener?.("voiceschanged", finish);
+        resolve(window.speechSynthesis.getVoices());
+      };
+      window.speechSynthesis.addEventListener?.("voiceschanged", finish, { once: true });
+      setTimeout(finish, 700);
+    });
+  }
+
+  function preferredBrowserVoice(voices) {
+    const korean = voices.filter(voice => /^ko([-_]|$)/i.test(voice.lang));
+    if (!korean.length) return null;
+    const preferredNames = state.interviewer === "manager"
+      ? /injoon|in-joon|준호|남성|male/i
+      : /sunhi|sun-hi|heami|하미|서현|여성|female|google.*한국/i;
+    return korean.find(voice => preferredNames.test(voice.name))
+      || korean.find(voice => voice.localService)
+      || korean[0];
+  }
+
+  async function speakBrowserQuestion(run, serverError) {
+    if (!("speechSynthesis" in window) || typeof window.SpeechSynthesisUtterance !== "function") {
+      setStage("idle", "이 브라우저에서는 질문 음성을 재생할 수 없어요.");
+      $("#remoteReplay").disabled = false;
+      $("#remoteMic").disabled = !state.recognition;
+      $("#remoteSupport").innerHTML = `<b>음성 재생을 지원하는 브라우저가 필요해요.</b><br>Chrome 또는 Edge에서 다시 열어주세요.${serverError ? ` · ${safe(serverError.message)}` : ""}`;
+      return;
+    }
+
+    const voices = await browserVoices();
+    if (run !== state.speechRun || !state.running) return;
+    const utterance = new SpeechSynthesisUtterance(state.questions[state.index]);
+    const voice = preferredBrowserVoice(voices);
+    if (voice) utterance.voice = voice;
+    utterance.lang = voice?.lang || "ko-KR";
+    utterance.rate = state.interviewer === "manager" ? 0.88 : state.interviewer === "strict" ? 1.02 : 1;
+    utterance.pitch = state.interviewer === "manager" ? 0.85 : state.interviewer === "strict" ? 0.92 : 1.08;
+    utterance.volume = 1;
+    state.questionUtterance = utterance;
+
+    const finishSpeech = () => {
+      if (run !== state.speechRun) return;
+      state.questionUtterance = null;
+      setStage("waiting", "답변 대기 중");
+      $("#remoteMic").disabled = !state.recognition;
+      $("#remoteMic").classList.toggle("ready", !!state.recognition);
+      $("#remoteReplay").disabled = false;
+    };
+    utterance.onstart = () => {
+      if (run !== state.speechRun) return;
+      setStage("speaking", "질문 중");
+      $("#remoteSupport").innerHTML = "<b>면접관 질문을 재생하고 있어요.</b><br>기기의 한국어 음성으로 안전하게 재생 중입니다.";
+    };
+    utterance.onend = finishSpeech;
+    utterance.onerror = event => {
+      if (run !== state.speechRun || event.error === "canceled" || event.error === "interrupted") return;
+      state.questionUtterance = null;
+      setStage("idle", "음성을 재생하지 못했어요. 질문 다시 듣기를 눌러주세요.");
+      $("#remoteReplay").disabled = false;
+      $("#remoteMic").disabled = !state.recognition;
+      $("#remoteSupport").innerHTML = `<b>기기 음성을 시작하지 못했어요.</b><br>${safe(event.error || "브라우저의 사이트 소리 권한을 확인해주세요.")}`;
+    };
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
   }
 
   async function speakOpenAIQuestion() {
     if (!state.running || !state.questions[state.index]) return;
     stopListening(false);
-    stopQuestionAudio();
     const run = ++state.speechRun;
+    stopQuestionAudio();
+    if (state.ttsUnavailable) {
+      await speakBrowserQuestion(run);
+      return;
+    }
     const controller = new AbortController();
     state.questionAudioRequest = controller;
     $("#remoteMic").disabled = true;
@@ -205,16 +292,14 @@
       audio.onended = finishSpeech;
       audio.onerror = () => {
         if (run !== state.speechRun) return;
-        setStage("idle", "음성을 재생하지 못했어요. ‘질문 다시 듣기’를 눌러주세요.");
-        $("#remoteReplay").disabled = false;
+        state.ttsUnavailable = true;
+        speakBrowserQuestion(run, new Error("서버 음성 파일을 재생하지 못했습니다."));
       };
       await audio.play();
     } catch (error) {
       if (error.name === "AbortError" || run !== state.speechRun) return;
-      setStage("idle", "면접관 음성을 불러오지 못했어요.");
-      $("#remoteReplay").disabled = false;
-      $("#remoteMic").disabled = !state.recognition;
-      $("#remoteSupport").innerHTML = `<b>OpenAI 면접관 음성을 불러오지 못했어요.</b><br>${safe(error.message)} · Render 음성 서버 상태를 확인해주세요.`;
+      state.ttsUnavailable = true;
+      await speakBrowserQuestion(run, error);
     } finally {
       if (state.questionAudioRequest === controller) state.questionAudioRequest = null;
     }
